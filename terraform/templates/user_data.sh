@@ -1,38 +1,34 @@
 #!/bin/bash
 set -ex
 
-# 1. Esperar a que cloud-init libere el bloqueo de paquetes (apt/dpkg)
+# 1. Esperar a que cloud-init libere el bloqueo de apt
 while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
    sleep 5
 done
 
-# 2. Actualizar paquetes e instalar dependencias básicas
+# 2. Instalar dependencias básicas
 apt-get update -y
 apt-get install -y ca-certificates curl gnupg git openssl
 
-# 3. Instalar Docker CE oficial (URL y llave GPG corregidas)
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://docker.com -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
+# 3. Instalación desatendida de Docker oficial
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+rm get-docker.sh
 
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://docker.com $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-apt-get update -y
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
 usermod -aG docker ubuntu
 
-# 4. Clonar el repositorio
+# 4. Clonar repositorio
 cd /opt
-git clone https://github.com calcom-stack
+git clone https://github.com/calcom/cal.diy.git calcom-stack
 cd calcom-stack
 
-# 5. Generar claves de seguridad únicas
+# 5. Generar claves seguras
 SECRET_NEXTAUTH=$(openssl rand -base64 32)
 SECRET_CALENDSO=$(openssl rand -base64 24)
 SECRET_JWT=$(openssl rand -hex 32)
 
-# 6. Crear archivo .env completo
+# 6. Crear archivo .env
 cat <<EOF > .env
 NODE_ENV="production"
 NEXTAUTH_SECRET="$SECRET_NEXTAUTH"
@@ -59,16 +55,15 @@ STRIPE_API_KEY="sk_test_placeholder"
 STRIPE_WEBHOOK_SECRET="whsec_placeholder"
 EOF
 
-# 7. Parchear docker-compose.yml para usar las imágenes oficiales de Docker Hub
+# 7. Parchear imágenes en docker-compose.yml
 sed -i 's|image: calcom.docker.scarf.sh/calcom/cal.diy:latest|image: calcom/cal.com:latest|g' docker-compose.yml
 sed -i 's|image: calcom/cal.diy:latest|image: calcom/cal.com:latest|g' docker-compose.yml
 
-# Asegurar que calcom-api use la imagen y no intente compilar
 if grep -q "container_name: calcom-api" docker-compose.yml; then
   sed -i '/container_name: calcom-api/a \    image: calcom/cal.com:latest' docker-compose.yml
 fi
 
-# 8. Crear la configuración de Nginx dockerizado
+# 8. Crear configuración de Nginx
 mkdir -p nginx/conf.d
 cat <<'EOF' > nginx/conf.d/default.conf
 server {
@@ -76,7 +71,6 @@ server {
     server_name _;
     client_max_body_size 20M;
 
-    # API v2 para AWS Bedrock y WhatsApp
     location /api/v2/ {
         proxy_pass http://calcom-api:80/v2/;
         proxy_set_header Host $host;
@@ -85,7 +79,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Frontend Web y Reservas
     location / {
         proxy_pass http://calcom:3000;
         proxy_set_header Host $host;
@@ -99,7 +92,7 @@ server {
 }
 EOF
 
-# 9. Agregar Nginx y el volumen certs a docker-compose.yml solo si no existen
+# 9. Añadir Nginx al compose si no está
 if ! grep -q "calcom-nginx" docker-compose.yml; then
 cat <<'EOF' >> docker-compose.yml
 
@@ -129,14 +122,12 @@ volumes:
 EOF
 fi
 
-# 10. Levantar los contenedores
+# 10. Levantar contenedores y migraciones
 export DOCKER_BUILDKIT=1
 docker compose up -d
 
-# 11. Esperar a que la base de datos esté lista y aplicar migraciones
 sleep 30
 docker compose exec -T -e DATABASE_URL="postgresql://unicorn_user:magical_password@database:5432/calendso" -e DATABASE_DIRECT_URL="postgresql://unicorn_user:magical_password@database:5432/calendso" calcom yarn workspace @calcom/prisma db-deploy
 docker compose exec -T -e DATABASE_URL="postgresql://unicorn_user:magical_password@database:5432/calendso" -e DATABASE_DIRECT_URL="postgresql://unicorn_user:magical_password@database:5432/calendso" calcom yarn workspace @calcom/prisma db-seed
 
-# 12. Reiniciar los servicios dependientes para refrescar conexiones
 docker compose restart calcom calcom-api nginx
