@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "instance_type" {
   description = "Tipo de instancia EC2 (mínimo t3.medium para Cal.com)"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.large"
 }
 
 variable "domain_name" {
