@@ -59,10 +59,7 @@ EOF
 sed -i 's/image: calcom.docker.scarf.sh\/calcom\/cal.diy/image: calcom\/cal.com/g' docker-compose.yml
 sed -i 's/image: calcom\/cal.diy/image: calcom\/cal.com/g' docker-compose.yml
 # Inserar volumen certs de nginx
-sed -i '/volumes:/{
-  N
-  /database-data:/a\  certs:
-}' docker-compose.yml
+sed -i -e '/^volumes:/,/^networks:/ { /database-data:/i\  certs:' -e '}' docker-compose.yml
 
 
 # 8. Crear configuración de Nginx
