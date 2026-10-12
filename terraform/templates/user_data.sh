@@ -56,12 +56,8 @@ STRIPE_WEBHOOK_SECRET="whsec_placeholder"
 EOF
 
 # 7. Parchear imágenes en docker-compose.yml
-sed -i 's|image: calcom.docker.scarf.sh/calcom/cal.diy:latest|image: calcom/cal.com:latest|g' docker-compose.yml
-sed -i 's|image: calcom/cal.diy:latest|image: calcom/cal.com:latest|g' docker-compose.yml
-
-if grep -q "container_name: calcom-api" docker-compose.yml; then
-  sed -i '/container_name: calcom-api/a \    image: calcom/cal.com:latest' docker-compose.yml
-fi
+sed -i 's/image: calcom.docker.scarf.sh\/calcom\/cal.diy/image: calcom\/cal.com/g' docker-compose.yml
+sed -i 's/image: calcom\/cal.diy/image: calcom\/cal.com/g' docker-compose.yml
 
 # 8. Crear configuración de Nginx
 mkdir -p nginx/conf.d
