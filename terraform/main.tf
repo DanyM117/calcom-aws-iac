@@ -5,7 +5,6 @@ terraform {
     key            = "prod/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    use_lockfile   = true # Nativo en Terraform >= 1.10 (reemplaza DynamoDB)
   }
   required_providers {
     aws = {
