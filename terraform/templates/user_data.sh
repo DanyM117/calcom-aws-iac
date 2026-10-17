@@ -60,6 +60,8 @@ sed -i 's/image: calcom.docker.scarf.sh\/calcom\/cal.diy/image: calcom\/cal.com/
 sed -i 's/image: calcom\/cal.diy/image: calcom\/cal.com/g' docker-compose.yml
 # Inserar volumen certs de nginx
 sed -i -e '/^volumes:/,/^networks:/ { /database-data:/i\  certs:' -e '}' docker-compose.yml
+# Quitar el mapero de puertos 80:80
+sudo sed -i '/container_name: calcom-api/,/depends_on:/ { /ports:/d; /"80:80"/d; /${API_PORT:-8080}:${API_PORT:-80}/d; }' docker-compose.yml
 
 
 # 8. Crear configuración de Nginx
@@ -70,20 +72,32 @@ server {
     server_name _;
     client_max_body_size 20M;
 
+    # DNS interno de Docker para resolución dinámica bajo demanda
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # API v2 (para Bedrock / WhatsApp)
     location /api/v2/ {
-        proxy_pass http://calcom-api:80/v2/;
+        set $api_upstream calcom-api;
+        proxy_pass http://$api_upstream:80/v2/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 90s;
+        proxy_read_timeout 90s;
     }
 
+    # Frontend Web de Cal.com
     location / {
-        proxy_pass http://calcom:3000;
+        set $web_upstream calcom;
+        proxy_pass http://$web_upstream:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSockets
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
