@@ -348,7 +348,17 @@ until docker compose exec -T database pg_isready -U calcom_user -d calendso >/de
     sleep 3
 done
 
-# 11.5 Crear tabla de enrutamiento para el Agente IA
+# 12. Levantar stack completo (compila la API y el Agente)
+docker compose up -d --build
+
+until [ "$(docker inspect -f '{{.State.Running}}' calcom 2>/dev/null)" = "true" ]; do
+    sleep 3
+done
+
+# 13. Ejecutar migraciones oficiales de Cal.com PRIMERO
+docker compose exec -T calcom yarn workspace @calcom/prisma db-deploy
+
+# 14. Crear tabla multi-tenant para el Agente IA DESPUÉS de Prisma
 docker compose exec -T database psql -U calcom_user -d calendso -c "
 CREATE TABLE IF NOT EXISTS agent_tenants (
     id SERIAL PRIMARY KEY,
@@ -361,13 +371,5 @@ CREATE TABLE IF NOT EXISTS agent_tenants (
 );
 "
 
-# 12. Levantar stack completo (compila la API y el Agente)
-docker compose up -d --build
-
-until [ "$(docker inspect -f '{{.State.Running}}' calcom 2>/dev/null)" = "true" ]; do
-    sleep 3
-done
-
-# 13. Ejecutar migraciones de base de datos
-docker compose exec -T calcom yarn workspace @calcom/prisma db-deploy
+# 15. Reiniciar servicios para que tomen los cambios en la base de datos
 docker compose restart calcom calcom-api whatsapp-agent nginx
