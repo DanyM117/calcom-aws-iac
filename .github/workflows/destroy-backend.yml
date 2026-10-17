@@ -1,0 +1,34 @@
+name: "Destroy Bootstrap Backend"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destruction:
+        description: 'Escribe "DESTROY" para confirmar la eliminación total del backend S3 y DynamoDB'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy_backend_s3:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_destruction == 'DESTROY'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Execute destroy backend script
+        run: |
+          chmod +x ./scripts/terraform/destroy_state_s3.sh
+          ./scripts/terraform/destroy_state_s3.sh
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}

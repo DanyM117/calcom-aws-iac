@@ -1,4 +1,4 @@
-name: "Terraform AWS Deploy"
+name: "Terraform AWS Deploy & Destroy"
 
 on:
   workflow_dispatch:
@@ -20,9 +20,6 @@ jobs:
   terraform:
     name: "Terraform Runner"
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./terraform
 
     steps:
       - name: Checkout del repositorio
@@ -32,24 +29,35 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
           audience: sts.amazonaws.com
+
+      - name: Inicializar Backend S3 y DynamoDB
+        run: |
+          chmod +x ./scripts/terraform/setup_backend.sh
+          ./scripts/terraform/setup_backend.sh
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Instalar Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.5
+          terraform_version: 1.5.0
 
       - name: Terraform Init
+        working-directory: ./terraform
         run: terraform init
 
       - name: Terraform Plan
+        working-directory: ./terraform
         run: terraform plan -input=false
 
-      - name: Terraform Apply o Destroy
+      - name: Terraform Apply
+        working-directory: ./terraform
         if: github.event.inputs.action == 'apply'
         run: terraform apply -auto-approve -input=false
 
-      - name: Terraform Destroy
+      - name: Terraform Destroy Infra
+        working-directory: ./terraform
         if: github.event.inputs.action == 'destroy'
         run: terraform destroy -auto-approve -input=false
