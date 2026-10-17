@@ -83,11 +83,39 @@ resource "aws_instance" "calcom_server" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = 30 # Mínimo 30 GB para imágenes Docker y builds de Prisma
+    volume_size = 50 # Mínimo 30 GB para imágenes Docker y builds de Prisma
     volume_type = "gp3"
   }
 
   # Inyecta el script de instalación automática
+  user_data = file("${path.module}/templates/user_data.sh")
+
+  tags = {
+    Name = "calcom-production"
+  }
+}
+
+resource "aws_instance" "calcom_server" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  vpc_security_group_ids      = [aws_security_group.calcom_sg.id]
+  associate_public_ip_address = true
+
+  # Adjuntar el perfil IAM con permisos a Bedrock
+  iam_instance_profile        = aws_iam_instance_profile.calcom_profile.name
+
+  # OBLIGATORIO para que contenedores Docker puedan leer credenciales IAM vía IMDSv2
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+  }
+
   user_data = file("${path.module}/templates/user_data.sh")
 
   tags = {
