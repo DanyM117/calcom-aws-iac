@@ -141,7 +141,7 @@ services:
       - stack
 
   calcom:
-    image: calcom/cal.diy:latest
+    image: calcom/cal.com:latest
     container_name: calcom
     restart: always
     networks:
