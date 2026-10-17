@@ -76,25 +76,8 @@ data "aws_ami" "ubuntu" {
 }
 
 # Instancia EC2
-resource "aws_instance" "calcom_server" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  vpc_security_group_ids      = [aws_security_group.calcom_sg.id]
-  associate_public_ip_address = true
 
-  root_block_device {
-    volume_size = 50 # Mínimo 30 GB para imágenes Docker y builds de Prisma
-    volume_type = "gp3"
-  }
-
-  # Inyecta el script de instalación automática
-  user_data = file("${path.module}/templates/user_data.sh")
-
-  tags = {
-    Name = "calcom-production"
-  }
-}
-
+# Instancia EC2 Unificada
 resource "aws_instance" "calcom_server" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
@@ -112,10 +95,11 @@ resource "aws_instance" "calcom_server" {
   }
 
   root_block_device {
-    volume_size = 30
+    volume_size = 50
     volume_type = "gp3"
   }
 
+  # Inyecta el script de instalación automática
   user_data = file("${path.module}/templates/user_data.sh")
 
   tags = {
